@@ -92,9 +92,9 @@ process prop \in Proposers
 begin
 P1: while TRUE do
         \********************************************************************
-        \* Proposer step 1.  Set the ballot number to the current number plus 
-        \* one, store that number in pBal, and send a "1a" message to all 
-        \* acceptors.                          
+        \* Proposer step 1 [Set and send ballot].  Set the ballot number to  
+        \* the current number plus one, store that number in pBal, and send a  
+        \* "1a" message to all acceptors.
         \*                                                                         
         \* A proposer p can be preempted.  Some acceptor may preempt the  
         \* execution of p by replying to p with a ballot number higher than       
@@ -110,8 +110,8 @@ P1: while TRUE do
         pQ2 := {}; 
 P2:
         \********************************************************************
-        \* Proposer step 2a.  Receive and process one "1b" message at a time,
-        \* until a quorum of acceptors have replied. The messages must 
+        \* Proposer step 2a [Wait]. Receive and process one "1b" message at a 
+        \* time, until a quorum of acceptors have replied. The messages must 
         \* satisfy the following conditions: p is the message's target, the 
         \* message has the same ballot as the proposer's. The sender ids (the 
         \* acceptors ids) are recorded in pQ1, until there is a majority of 
@@ -137,10 +137,10 @@ P2:
             end with
         end while;
         \********************************************************************
-        \* Proposer step 2b [Select value].  Now there is a set of "1a"      
-        \* messages from a quorum of acceptors, whose ids are stored in pQ1       
-        \* (so pQ1 \in Quorums). This step selects a value to propose in the           
-        \* following way.  If pVBal = NoBallot, some value is selected      
+        \* Proposer step 2b [Select and send value].  Now there is a set of       
+        \* "1a" messages from a quorum of acceptors, whose ids are stored in        
+        \* pQ1 (so pQ1 \in Quorums). This step selects a value to propose in            
+        \* the following way.  If pVBal = NoBallot, some value is selected      
         \* non-deterministically, representing a value passed as an argument      
         \* to the proposer. Otherwise, if there is a valid ballot in pVBal,  
         \* the value to be sent is in pVVal.  
@@ -557,10 +557,10 @@ PMsgInv ==
           \* the same value that was attempted before for the same ballot.
           \* Required to prove VotedOnce and KnowsSameValue.
        /\ PM2(m):: SafeAt(m.val, m.bal)
-       /\ PM3(m):: m.bal = pBal[p] => pQ1[p] \in Quorums \* Required in proofs of step P3.
+       /\ PM3(m):: m.bal = pBal[p] => pQ1[p] \in Quorums \* Required in proofs of step P2b.
        /\ PM4(m):: m.bal = pBal[p] /\ pVBal[p] \in Ballots /\ pQ2[p] \notin Quorums 
                    => m.val = pVVal[p]      
-          \* Required to prove PS7, step P3.
+          \* Required to prove PS7, step P2b.
     /\ PM5(m):: m.type \in {"1a","2a"} => m.from = m.bal[2]
 
 COROLLARY EqualBallotSameProposer ==
@@ -835,10 +835,10 @@ Inv == PInv /\ AInv
 (***************************************************************************)
 
 LEMMA PSafeAtStable == 
-  ASSUME PInv, PNext 
+  ASSUME PNext 
   PROVE  \A v \in Values, b \in Ballots: SafeAt(v, b) => SafeAt(v, b)'
 BY SMTT(10) DEF PNext, P1, P2, P3,
-    Send, PInv, Ballots, SafeAt, DidntVoteIn, VotedForIn, 
+    Send, Ballots, SafeAt, DidntVoteIn, VotedForIn, 
     WontVoteIn, ParticipatedIn
 
 LEMMA ASafeAtStable == 
@@ -1163,11 +1163,15 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
                 BY <7>m, QuorumAssumption1
               <8> WITNESS pQ1[p] \in Quorums
               <8> TAKE a \in pQ1[p] 
-              <8> pBal[p] # NoBallot 
-                BY BallotLtProps DEF PStateInv, MTypeOK, Messages
+              <8>3. /\ pBal[p] \in Ballots 
+                    /\ \E SS \in SUBSET msgs: Msg1bOK(p,SS)
+                <9> pBal[p] # NoBallot 
+                  BY BallotLtProps DEF PStateInv, MTypeOK, Messages
+                <9> QED
+                  BY PStateInv!PS5(p), PStateInv!PS10(p) DEF PStateInv
               <8> QED
-                BY <7>b, <8>2, <8>1, BallotLtProps, Z3 
-                DEF DidntVoteIn, PStateInv, Msg1bOK, WontVoteIn, ParticipatedIn
+                BY <7>b, <8>1, <8>2, <8>3, BallotLtProps, Z3 
+                DEFS Msg1bOK, DidntVoteIn, WontVoteIn, ParticipatedIn
             <7>c. CASE pVBal[p] \prec c /\ c \prec pBal[p]
               BY <5>1, <7>c DEF PStateInv 
             <7> QED
@@ -1820,7 +1824,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
     <3>10. pc[p]' = "P2" => pQ2[p]' = {}
       <4> HAVE pc[p]' = "P2"
       <4>1. ASSUME NEW p_1 \in Proposers, P1(p_1) PROVE <3>10!2
-        BY <4>1, SMT DEF P1, MTypeOK, PTypeOK, Messages
+        BY <4>1 DEF P1, MTypeOK, PTypeOK, Messages
       <4>2. ASSUME NEW p_1 \in Proposers, P2(p_1), pQ1[p_1] \notin Quorums PROVE <3>10!2
         BY <4>2 DEF P2, MTypeOK, PTypeOK, Messages
       <4>3. ASSUME NEW p_1 \in Proposers, P2(p_1), pQ1[p_1] \in Quorums PROVE <3>10!2
@@ -1858,7 +1862,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
       <4>2. CASE \E p_1 \in Proposers: P2(p_1) /\ pQ1[p_1] \notin Quorums
         BY <4>2, SMT DEF P2
       <4>3. CASE \E p_1 \in Proposers: P2(p_1) /\ pQ1[p_1] \in Quorums
-        BY <4>3, NextBallotProps, BallotLtProps, Z3 DEFS P2, Ballots
+        BY <4>3, BallotLtProps, Z3 DEFS P2, Ballots (* by PStateInv!PS12 only *)
       <4>4. CASE \E p_1 \in Proposers: P3(p_1)
         BY <4>4, SMT DEF P3
       <4> QED
@@ -2522,5 +2526,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Feb 21 13:17:00 CET 2018 by hernanv
+\* Last modified Mon Mar 05 14:02:35 CET 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
