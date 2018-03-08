@@ -515,7 +515,6 @@ AMsgInv ==
                               /\ mp.from = m.to
                               /\ mp.bal  = m.bal
                               /\ mp.val  = m.val
-\*                              /\ WontVoteIn(m.from, m.bal) => m.bal \prec mp.bal
           /\ m.bal \preceq aVBal[m.from] \* local to acceptor m.from
 
 (***************************************************************************)
@@ -562,8 +561,8 @@ PMsgInv ==
        /\ PM4(m):: m.bal = pBal[p] /\ pVBal[p] \in Ballots /\ pQ2[p] \notin Quorums 
                    => m.val = pVVal[p]      
           \* Required to prove PS7, step P2b.
-       /\ PM5(m):: \A aa \in pQ1[m.from] \cup pQ2[m.from]: 
-                     WontVoteIn(aa, pBal[m.from]) => m.bal \preceq pBal[m.from]
+       /\ PM5(m):: \A aa \in Acceptors: 
+                     WontVoteIn(aa, pBal[p]) => m.bal \preceq pBal[p]
     /\ PM6(m):: m.type \in {"1a","2a"} => m.from = m.bal[2]
 
 COROLLARY EqualBallotSameProposer ==
@@ -1288,12 +1287,13 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
           BY SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, AMsgInv
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
-    <3>e. \A a \in pQ1[m.from]' \cup pQ2[m.from]':  
+    <3>e. \A a \in Acceptors:  
             WontVoteIn(a, pBal[m.from])' => m.bal \preceq pBal[m.from]'
-      <4> TAKE a \in pQ1[m.from]' \cup pQ2[m.from]'
+      <4> TAKE a \in Acceptors
       <4> HAVE WontVoteIn(a, pBal[m.from])'
       <4>1. CASE \E p \in Proposers: P1(p)
-        BY <4>1, BallotLtProps DEFS P1, PMsgInv, MTypeOK, PTypeOK, Messages, PStateInv
+        BY <4>1, BallotLtProps, NextBallotProps, Z3 
+        DEFS P1, PMsgInv, MTypeOK, PTypeOK, Messages, PStateInv, AMsgInv 
       <4>2. CASE \E p \in Proposers: P2(p) /\ pQ1[p] \notin Quorums
         <5> SUFFICES ASSUME NEW p \in Proposers,
                             pQ1[p] \notin Quorums,
@@ -1737,19 +1737,19 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
                             pBal' = [pBal EXCEPT ![p_1] = nextBallot(pBal[p_1],p_1)],
                             Send([type |-> "1a", from |-> p_1, bal |-> pBal'[p_1]]),
                             pc' = [pc EXCEPT ![p_1] = "P2"],
-                            UNCHANGED << pWr, aBal, aVBal, aVVal >>
+                            UNCHANGED pWr
                      PROVE  <3>8!2
           BY <4>1, SMT DEF P1
-          <5> pQ1[p] \in Quorums /\ pQ2[p] \in Quorums /\ pVBal[p] = pBal[p]
-            BY DEFS PTypeOK, MTypeOK, Messages
-          <5>a. CASE p = p_1 \* By contradiction.
-            BY <5>a, QuorumNonEmpty, SMT 
-            DEFS VotedForIn, PTypeOK, MTypeOK, Messages, AMsgInv
-          <5>b. CASE p # p_1
-            BY <5>b, SMT DEFS PTypeOK, MTypeOK, Messages
-          <5> QED
-            BY QuorumNonEmpty, SMT 
-            DEFS VotedForIn, PTypeOK, MTypeOK, Messages, AMsgInv
+        <5> pQ1[p] \in Quorums /\ pQ2[p] \in Quorums /\ pVBal[p] = pBal[p]
+          BY DEFS PTypeOK, MTypeOK, Messages
+        <5>a. CASE p = p_1 \* By contradiction.
+          BY <5>a, QuorumNonEmpty, SMT 
+          DEFS VotedForIn, PTypeOK, MTypeOK, Messages, AMsgInv
+        <5>b. CASE p # p_1
+          BY <5>b, SMT DEFS PTypeOK, MTypeOK, Messages
+        <5> QED
+          BY QuorumNonEmpty, SMT 
+          DEFS VotedForIn, PTypeOK, MTypeOK, Messages, AMsgInv
       <4>2. CASE \E p_1 \in Proposers: P2(p_1) /\ pQ1[p_1] \notin Quorums
         BY <4>2 DEF P2, VotedForIn, PTypeOK, MTypeOK, Messages, AMsgInv
       <4>3. CASE \E p_1 \in Proposers: P2(p_1) /\ pQ1[p_1] \in Quorums
@@ -2592,5 +2592,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 08 16:07:28 CET 2018 by hernanv
+\* Last modified Thu Mar 08 16:44:14 CET 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
