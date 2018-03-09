@@ -551,7 +551,7 @@ PConsistency ==
 PMsgInv ==
   \A m \in msgs :
     LET p == m.from IN
-    /\ m.type = "2a" =>
+    /\ m.type = "2a" /\ p = pBal[p][2] =>
        /\ PM1(m):: \A ma \in msgs : (ma.type = "2a") /\ (ma.bal = m.bal) => (ma.val = m.val)
           \* A proposer that attempts to write a value v, it can only write 
           \* the same value that was attempted before for the same ballot.
@@ -563,7 +563,7 @@ PMsgInv ==
           \* Required to prove PS7, step P2b.
        /\ PM5(m):: \A aa \in Acceptors: 
                      WontVoteIn(aa, pBal[p]) => m.bal \preceq pBal[p]
-    /\ PM6(m):: m.type \in {"1a","2a"} => m.from = m.bal[2]
+    /\ PM6(m):: m.type \in {"1a","2a"} => p = m.bal[2]
 
 COROLLARY EqualBallotSameProposer ==
   ASSUME PMsgInv
@@ -1032,13 +1032,21 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         BY <4>4 DEF P3, PMsgInv, VotedForIn
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
-    <3> SUFFICES ASSUME m.type = "2a" PROVE PMsgInv!(m)!1!1'
+    <3> SUFFICES ASSUME m.type = "2a", m.from = pBal[m.from][2]' PROVE PMsgInv!(m)!1!1'
       BY <3>1 DEF PMsgInv
     <3>a. \A ma \in msgs' : ma.type = "2a" /\ ma.bal = m.bal => ma.val = m.val
       <4> TAKE ma \in msgs'
       <4> HAVE ma.type = "2a" /\ ma.bal = m.bal 
       <4>1. CASE \E p \in Proposers: P1(p)
-        BY <4>1 DEF P1, PMsgInv, VotedForIn
+        <5> SUFFICES ASSUME NEW p \in Proposers, P1(p) PROVE ma.val = m.val
+          BY <4>1, NextBallotProps, SMT DEF P1, PMsgInv, VotedForIn
+        <5>a. pBal[p] \in Ballots => pBal[m.from][2]' = pBal[m.from][2]
+          BY NextBallotProps, Z3 DEF P1, MTypeOK, PTypeOK, Messages, PMsgInv, PStateInv
+        <5>b. CASE pBal[p] = NoBallot
+          BY <5>b, NextBallotProps, BallotLtProps, Z3 
+          DEF P1, MTypeOK, PTypeOK, Messages, PMsgInv, PStateInv \* by PS12
+        <5> QED
+          BY <5>a, <5>b DEF P1, PMsgInv, MTypeOK, PTypeOK, Messages
       <4>2. CASE \E p \in Proposers: P2(p) /\ pQ1[p] \notin Quorums
         BY <4>2 DEF P2, PMsgInv, VotedForIn
       <4>3. CASE \E p \in Proposers: P2(p) /\ pQ1[p] \in Quorums
@@ -1055,7 +1063,10 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
           BY <4>3, SMT DEF P2
         <5> DEFINE M == [type |-> "2a", from |-> p, bal |-> pBal[p], val |-> v]
         <5>a. CASE m \in msgs /\ ma \in msgs
-          BY <5>a, SMT DEFS MTypeOK, PTypeOK, Messages, PMsgInv
+          <6> pBal[m.from][2]' = pBal[m.from][2]
+            BY <5>0, Z3 DEFS MTypeOK, PTypeOK, Messages, PMsgInv
+          <6> QED
+            BY <5>a, SMT DEFS MTypeOK, PTypeOK, Messages, PMsgInv
         <5>b. CASE m = ma /\ ma = M
           BY <5>b, SMT DEFS MTypeOK, PTypeOK, Messages, PMsgInv
         <5> ~ \E mm \in msgs : mm.type = "2a" /\ mm.bal = pBal[p] /\ mm.from = p
@@ -1082,7 +1093,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
     <3>b. SafeAt(m.val, m.bal)'
       <4>1. CASE \E p \in Proposers: P1(p)
-        BY <4>1, <2>1, PSafeAtStable DEF P1, MTypeOK, PTypeOK, Messages, PMsgInv
+        BY <4>1, <2>1, BallotLtProps, PSafeAtStable, Z3 
+        DEFS P1, MTypeOK, PTypeOK, Messages, PMsgInv, PStateInv
       <4>2. CASE \E p \in Proposers: P2(p) /\ pQ1[p] \notin Quorums
         BY <4>2, <2>1, PSafeAtStable DEF P2, MTypeOK, Messages, PMsgInv
       <4>3. ASSUME NEW p \in Proposers, P2(p), pQ1[p] \in Quorums PROVE <3>b
@@ -1311,9 +1323,9 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
                  /\ mx.bal = d 
           BY <5>d DEF ParticipatedIn
         <5>a. CASE mx.type = "1b"
-          BY <5>a, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, AMsgInv, PStateInv
+          BY <5>a, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, PStateInv
         <5>b. CASE mx.type = "2b" /\ mx.val \in Values
-          BY <5>b, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, AMsgInv, PStateInv
+          BY <5>b, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, PStateInv
         <5> QED
           BY <5>mx, <5>a, <5>b
       <4>3. CASE \E p \in Proposers: P2(p) /\ pQ1[p] \in Quorums
@@ -1344,9 +1356,9 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
                  /\ mx.bal = d 
           BY <5>d DEF ParticipatedIn
         <5>a. CASE mx.type = "1b"
-          BY <5>a, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, AMsgInv, PStateInv
+          BY <5>a, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, PStateInv
         <5>b. CASE mx.type = "2b" /\ mx.val \in Values
-          BY <5>b, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, AMsgInv, PStateInv
+          BY <5>b, BallotLtProps, SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, PStateInv
         <5> QED
           BY <5>mx, <5>a, <5>b
       <4> QED
@@ -2592,5 +2604,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 08 16:44:14 CET 2018 by hernanv
+\* Last modified Fri Mar 09 12:28:49 CET 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
