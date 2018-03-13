@@ -551,11 +551,12 @@ PConsistency ==
 PMsgInv ==
   \A m \in msgs :
     LET p == m.from IN
-    /\ m.type = "2a" /\ p = pBal[p][2] =>
+    /\ m.type = "2a" =>
        /\ PM1(m):: \A ma \in msgs : (ma.type = "2a") /\ (ma.bal = m.bal) => (ma.val = m.val)
           \* A proposer that attempts to write a value v, it can only write 
           \* the same value that was attempted before for the same ballot.
           \* Required to prove VotedOnce and KnowsSameValue.
+    /\ m.type = "2a" /\ p = pBal[p][2] =>
        /\ PM2(m):: SafeAt(m.val, m.bal)
        /\ PM3(m):: m.bal = pBal[p] => pQ1[p] \in Quorums \* Required in proofs of step P2b.
        /\ PM4(m):: m.bal = pBal[p] /\ pVBal[p] \in Ballots /\ pQ2[p] \notin Quorums 
@@ -1032,9 +1033,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         BY <4>4 DEF P3, PMsgInv, VotedForIn
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
-    <3> SUFFICES ASSUME m.type = "2a", m.from = pBal[m.from][2]' PROVE PMsgInv!(m)!1!1'
-      BY <3>1 DEF PMsgInv
-    <3>a. \A ma \in msgs' : ma.type = "2a" /\ ma.bal = m.bal => ma.val = m.val
+    <3>a. m.type = "2a" => \A ma \in msgs' : ma.type = "2a" /\ ma.bal = m.bal => ma.val = m.val
+      <4> HAVE m.type = "2a"
       <4> TAKE ma \in msgs'
       <4> HAVE ma.type = "2a" /\ ma.bal = m.bal 
       <4>1. CASE \E p \in Proposers: P1(p)
@@ -1091,6 +1091,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         BY <4>4 DEF P3, PMsgInv, VotedForIn
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
+    <3> SUFFICES ASSUME m.type = "2a", m.from = pBal[m.from][2]' PROVE PMsgInv!(m)!1!2'
+      BY <3>1, <3>a DEF PMsgInv
     <3>b. SafeAt(m.val, m.bal)'
       <4>1. CASE \E p \in Proposers: P1(p)
         BY <4>1, <2>1, BallotLtProps, PSafeAtStable, Z3 
@@ -1299,8 +1301,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
           BY SMT DEF PMsgInv, MTypeOK, PTypeOK, Messages, AMsgInv
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
-    <3>e. \A a \in Acceptors:  
-            WontVoteIn(a, pBal[m.from])' => m.bal \preceq pBal[m.from]'
+    <3>e. \A a \in Acceptors: WontVoteIn(a, pBal[m.from])' => m.bal \preceq pBal[m.from]'
+\*      <4> HAVE m.from = pBal[m.from][2]'
       <4> TAKE a \in Acceptors
       <4> HAVE WontVoteIn(a, pBal[m.from])'
       <4>1. CASE \E p \in Proposers: P1(p)
@@ -1364,7 +1366,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
     <3> QED
-      BY <3>a, <3>b, <3>c, <3>d, <3>e
+      BY <3>b, <3>c, <3>d, <3>e
   <2>3. PStateInv'
     <3> SUFFICES ASSUME NEW p \in Proposers PROVE PStateInv!(p)'
       BY DEF PStateInv
@@ -2604,5 +2606,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 09 12:28:49 CET 2018 by hernanv
+\* Last modified Tue Mar 13 13:12:47 CET 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
