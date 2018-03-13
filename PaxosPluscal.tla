@@ -72,10 +72,7 @@ define
     a \prec b == 
         \/ a[1] < b[1] 
         \/ a[1] = b[1] /\ a[2] < b[2] 
-    a \preceq b == 
-        \/ a[1] < b[1] 
-        \/ a[1] = b[1] /\ a[2] < b[2]
-        \/ a = b 
+    a \preceq b == a \prec b \/ a = b 
 end define;
 
 macro Send(m) begin msgs := msgs \cup {m}; end macro;
@@ -254,10 +251,7 @@ nextBallot(b,p) == IF b = UndefBal THEN << 0, p >> ELSE << b[1] + 1, p >>
 a \prec b ==
     \/ a[1] < b[1]
     \/ a[1] = b[1] /\ a[2] < b[2]
-a \preceq b ==
-    \/ a[1] < b[1]
-    \/ a[1] = b[1] /\ a[2] < b[2]
-    \/ a = b
+a \preceq b == a \prec b \/ a = b
 
 VARIABLES pBal, pVBal, pVVal, pQ1, pQ2, pWr, pLBal, aBal, aVBal, aVVal
 
@@ -741,7 +735,7 @@ BY DEF \prec, UndefBal, Ballots
 LEMMA BallotTransLtLt == \A x,y,z \in BallotsX: x \prec y /\ y \prec z => x \prec z
 BY ProposersNat, SMT DEF \prec, UndefBal, Ballots
 LEMMA BallotTransLeLe == \A x,y,z \in BallotsX: x \preceq y /\ y \preceq z => x \preceq z
-BY ProposersNat, SMT DEF \preceq, UndefBal, Ballots
+BY ProposersNat, SMT DEF \preceq, \prec, UndefBal, Ballots
 LEMMA BallotTransLeLt == \A x,y,z \in BallotsX: x \preceq y /\ y \prec z => x \prec z
 BY ProposersNat, SMT DEF \prec, \preceq, UndefBal, Ballots
 LEMMA BallotTransLtLe == \A x,y,z \in BallotsX: x \prec y /\ y \preceq z => x \prec z
@@ -2621,5 +2615,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Mar 13 18:49:45 CET 2018 by hernanv
+\* Last modified Tue Mar 13 18:53:51 CET 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
