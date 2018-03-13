@@ -560,8 +560,8 @@ PMsgInv ==
           \* A proposer that attempts to write a value v, it can only write 
           \* the same value that was attempted before for the same ballot.
           \* Required to prove VotedOnce and KnowsSameValue.
-    /\ m.type = "2a" /\ p = pBal[p][2] =>
        /\ PM2(m):: SafeAt(m.val, m.bal)
+    /\ m.type = "2a" /\ p = pBal[p][2] =>
        /\ PM3(m):: m.bal = pBal[p] => pQ1[p] \in Quorums \* Required in proofs of step P2b.
        /\ PM4(m):: m.bal = pBal[p] /\ pVBal[p] \in Ballots /\ pQ2[p] \notin Quorums 
                    => m.val = pVVal[p]      
@@ -632,7 +632,6 @@ PStateInv ==
     /\ PS9(p):: \A a \in pQ1[p], c \in Ballots: 
                   pVBal[p] \prec c /\ c \prec pBal[p] =>
                   DidntVoteIn(a, c) /\ WontVoteIn(a, c) \* For proving SafeAt
-\*    /\ PS10(p):: pc[p] = "P2" => pQ2[p] = {} \* Only to prove one step in PMsgInv!PM2.
     /\ PS10(p):: pQ1[p] \notin Quorums => pQ2[p] = {} \* Required for step <4>2 of PS6.
     /\ PS11(p):: pc[p] = "P2" => 
                    ~ \E m \in msgs : /\ m.type = "2a" 
@@ -962,9 +961,18 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         BY DEF mvars, pvars, VotedForIn, WontVoteIn, ParticipatedIn
       <4> UNCHANGED mvars /\ UNCHANGED pvars
         BY PUnchangedConcat
+      <4> HAVE MTypeOK /\ PTypeOK /\ PMsgInv /\ PStateInv /\ [PNext]_(mvars \o pvars)
+      <4> USE DEFS mvars, pvars, Messages, SafeAt, DidntVoteIn
+      <4>1. MTypeOK'
+        BY SMT DEF MTypeOK
+      <4>2. PTypeOK'
+        BY SMT DEF PTypeOK 
+      <4>3. PMsgInv' 
+        BY SMT DEF PMsgInv
+      <4>4. PStateInv'
+        BY SMT DEF PStateInv, Msg1bOK, Msg2bOK
       <4> QED
-        BY Z3 DEF mvars, pvars, PTypeOK, MTypeOK, Messages, PMsgInv, PStateInv, 
-                   SafeAt, DidntVoteIn, Msg1bOK, Msg2bOK
+        BY <4>1, <4>2, <4>3, <4>4, Zenon
     <3> QED
       OBVIOUS
   <2>1. MTypeOK' /\ PTypeOK'
@@ -1100,9 +1108,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         BY <4>4 DEF P3, PMsgInv, VotedForIn
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
-    <3> SUFFICES ASSUME m.type = "2a", m.from = pBal[m.from][2]' PROVE PMsgInv!(m)!1!2'
-      BY <3>1, <3>a DEF PMsgInv
-    <3>b. SafeAt(m.val, m.bal)'
+    <3>b. m.type = "2a" => SafeAt(m.val, m.bal)'
+      <4> HAVE m.type = "2a"
       <4>1. CASE \E p \in Proposers: P1(p)
         BY <4>1, <2>1, BallotLtProps, PSafeAtStable, Z3 
         DEFS P1, MTypeOK, PTypeOK, Messages, PMsgInv, PStateInv
@@ -1212,6 +1219,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         BY <4>4, <2>1, PSafeAtStable DEF P3, MTypeOK, PTypeOK, Messages, PMsgInv
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext   
+    <3> SUFFICES ASSUME m.type = "2a", m.from = pBal[m.from][2]' PROVE PMsgInv!(m)!1!2'
+      BY <3>1, <3>a, <3>b DEF PMsgInv
     <3>c. m.bal = pBal[m.from]' => pQ1[m.from]' \in Quorums
       <4> HAVE m.bal = pBal[m.from]'
       <4>1. ASSUME NEW p \in Proposers, P1(p) PROVE <3>c!2
@@ -1376,7 +1385,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
     <3> QED
-      BY <3>b, <3>c, <3>d, <3>e
+      BY <3>c, <3>d, <3>e
   <2>3. PStateInv'
     <3> SUFFICES ASSUME NEW p \in Proposers PROVE PStateInv!(p)'
       BY DEF PStateInv
@@ -1389,18 +1398,19 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
           BY <4>1, NoValueNotAValue DEF P1, AMsgInv, MTypeOK, PTypeOK, Messages
         <5> pBal[p] \preceq nextBallot(pBal[p],p)
           BY <4>1, BallotLtProps, NextBallotProps, Z3 
-          DEF P1, AMsgInv, MTypeOK, PTypeOK, Messages
+          DEFS P1, AMsgInv, MTypeOK, PTypeOK, Messages
         <5>2. pVBal[p]' \preceq pBal[p]'
           BY <4>1, BallotLtProps, NextBallotProps, Z3
-          DEF P1, AMsgInv, MTypeOK, PTypeOK, Messages
+          DEFS P1, AMsgInv, MTypeOK, PTypeOK, Messages
         <5>3. pVBal[p]' \in Ballots => pBal[p]' \in Ballots
-          BY <4>1, NoValueNotAValue, BallotLtProps DEF P1, AMsgInv, MTypeOK, PTypeOK, Messages
+          BY <4>1, NoValueNotAValue, BallotLtProps 
+          DEFS P1, AMsgInv, MTypeOK, PTypeOK, Messages
         <5> QED
           BY <5>1, <5>2, <5>3
       <4>2. ASSUME NEW p_1 \in Proposers, P2(p_1), pQ1[p_1] \notin Quorums PROVE <3>1
         <5>1. pVBal[p]' = NoBallot <=> pVVal[p]' = NoValue
           BY <4>2, NoValueNotAValue, NoBallotNotInBallots
-          DEF P2, AMsgInv, MTypeOK, PTypeOK, Messages
+          DEFS P2, AMsgInv, MTypeOK, PTypeOK, Messages
         <5>2. pVBal[p]' \preceq pBal[p]'
           BY <4>2, NoValueNotAValue DEF P2, AMsgInv, MTypeOK, PTypeOK, Messages
         <5>3. pVBal[p]' \in Ballots => pBal[p]' \in Ballots
@@ -2608,5 +2618,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Mar 13 15:50:29 CET 2018 by hernanv
+\* Last modified Tue Mar 13 16:08:47 CET 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
