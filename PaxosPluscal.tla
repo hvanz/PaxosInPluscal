@@ -143,8 +143,11 @@ P2:
         \* the following way.  If pVBal = NoBallot, some value is selected      
         \* non-deterministically, representing a value passed as an argument      
         \* to the proposer. Otherwise, if there is a valid ballot in pVBal,  
-        \* the value to be sent is in pVVal.  
+        \* the value to be sent is in pVVal.
+        \* The conditions pQ1 \in Quorums /\ pQ2 = {} are redundant; they 
+        \* just simplifies the invariants and proofs.  
         \********************************************************************
+        when pQ1 \in Quorums /\ pQ2 = {}; 
         with v \in Values do
            when pVBal = NoBallot \/ (pVBal \in Ballots /\ v = pVVal);
            Send([type |-> "2a", from |-> self, bal |-> pBal, val |-> v]);
@@ -302,7 +305,8 @@ P2(self) == /\ pc[self] = "P2"
                                           ELSE /\ pc' = [pc EXCEPT ![self] = "P2"]
                                     /\ UNCHANGED << pVBal, pVVal, pQ1 >>
                        /\ msgs' = msgs
-                  ELSE /\ \E v \in Values:
+                  ELSE /\ pQ1[self] \in Quorums /\ pQ2[self] = {}
+                       /\ \E v \in Values:
                             /\ pVBal[self] = NoBallot \/ (pVBal[self] \in Ballots /\ v = pVVal[self])
                             /\ msgs' = (msgs \cup {([type |-> "2a", from |-> self, bal |-> pBal[self], val |-> v])})
                        /\ pc' = [pc EXCEPT ![self] = "P3"]
@@ -628,7 +632,8 @@ PStateInv ==
     /\ PS9(p):: \A a \in pQ1[p], c \in Ballots: 
                   pVBal[p] \prec c /\ c \prec pBal[p] =>
                   DidntVoteIn(a, c) /\ WontVoteIn(a, c) \* For proving SafeAt
-    /\ PS10(p):: pc[p] = "P2" => pQ2[p] = {} \* Only to prove one step in PMsgInv!PM2.
+\*    /\ PS10(p):: pc[p] = "P2" => pQ2[p] = {} \* Only to prove one step in PMsgInv!PM2.
+    /\ PS10(p):: pQ1[p] \notin Quorums => pQ2[p] = {} \* Required for step <4>2 of PS6.
     /\ PS11(p):: pc[p] = "P2" => 
                    ~ \E m \in msgs : /\ m.type = "2a" 
                                      /\ m.from = p 
@@ -958,7 +963,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
       <4> UNCHANGED mvars /\ UNCHANGED pvars
         BY PUnchangedConcat
       <4> QED
-        BY SMT DEF mvars, pvars, PTypeOK, MTypeOK, Messages, PMsgInv, PStateInv, 
+        BY Z3 DEF mvars, pvars, PTypeOK, MTypeOK, Messages, PMsgInv, PStateInv, 
                    SafeAt, DidntVoteIn, Msg1bOK, Msg2bOK
     <3> QED
       OBVIOUS
@@ -972,6 +977,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
       <4> SUFFICES ASSUME NEW p \in Proposers,
                           pc[p] = "P2",
                           pQ1[p] \in Quorums,
+                          pQ2[p] = {},
                           NEW v \in Values,
                           Send([type |-> "2a", from |-> p, bal |-> pBal[p], val |-> v]),
                           \/ pVBal[p] = NoBallot
@@ -981,7 +987,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
                    PROVE  MTypeOK' /\ PTypeOK'
         BY <3>3 DEF P2
       <4>a. CASE pVBal[p] = NoBallot
-        BY <4>a, QuorumNonEmpty, SMT DEF PStateInv, Msg1bOK
+        BY <4>a, QuorumNonEmpty, SMT DEF PStateInv, Msg1bOK \* using pQ2[p] = {}
       <4>b. CASE pVBal[p] \in Ballots /\ v = pVVal[p]
         BY <4>b DEFS PStateInv, PTypeOK
       <4> QED
@@ -1009,7 +1015,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
         <5>0. SUFFICES 
                 ASSUME NEW p \in Proposers,
                        pc[p] = "P2",
-                       pQ1[p] \in Quorums,
+                       pQ1[p] \in Quorums, 
+                       pQ2[p] = {},
                        NEW v \in Values,
                        pVBal[p] = NoBallot \/ (pVBal[p] \in Ballots /\ v = pVVal[p]),
                        Send([type |-> "2a", from |-> p, bal |-> pBal[p], val |-> v]),
@@ -1022,9 +1029,11 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
           BY <5>a, SMT DEFS MTypeOK, PTypeOK, Messages, PMsgInv
         <5>b. CASE m = M
           <6> SUFFICES m.from = pBal[p][2]
-            BY <5>b, BallotLtProps, NextBallotProps, Z3 DEFS MTypeOK, PTypeOK, Messages, PMsgInv
+            BY <5>b, BallotLtProps, NextBallotProps, Z3 
+            DEFS MTypeOK, PTypeOK, Messages, PMsgInv
           <6> pBal[p] \in Ballots 
-            BY <5>0, QuorumNonEmpty DEFS MTypeOK, PTypeOK, Messages, PStateInv
+            BY <5>0, QuorumNonEmpty 
+            DEFS MTypeOK, PTypeOK, Messages, PStateInv \* using pQ2[p] = {}
           <6> QED
             BY <5>b DEFS MTypeOK, PTypeOK, Messages, PStateInv
         <5> QED
@@ -1102,7 +1111,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
       <4>3. ASSUME NEW p \in Proposers, P2(p), pQ1[p] \in Quorums PROVE <3>b
         <5> /\ pc[p] = "P2"
             /\ pQ1[p] \in Quorums
-            /\ UNCHANGED <<pBal, pVBal, pVVal, pWr, pQ1, pQ2>>        
+            /\ UNCHANGED <<pBal, pVBal, pVVal, pWr, pQ1, pQ2>>
+            /\ pQ2[p] = {}   \* PStateInv!PS10(p)
           BY <4>3 DEF P2
         <5>1. PICK v \in Values :
                  /\ \/ pVBal[p] = NoBallot
@@ -1134,7 +1144,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
               BY <7>2
           <6>b. CASE pVBal[p] \in Ballots /\ v = pVVal[p]
             <7>0. pWr[p] = FALSE
-              BY PStateInv!PS10(p), QuorumNonEmpty, <4>3 DEFS P2, PStateInv
+              BY QuorumNonEmpty, <4>3 DEFS P2, PStateInv \* using pQ2[p] = {}
             <7>m. PICK m1bmax \in msgs :
                     /\ m1bmax.type = "1b"
                     /\ m1bmax.from \in pQ1[p]
@@ -1184,7 +1194,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
                 <9> pBal[p] # NoBallot 
                   BY BallotLtProps DEF PStateInv, MTypeOK, Messages
                 <9> QED
-                  BY PStateInv!PS5(p), PStateInv!PS10(p) DEF PStateInv
+                  BY PStateInv!PS5(p) DEF PStateInv \* using pQ2[p] = {}
               <8> QED
                 BY <7>b, <8>1, <8>2, <8>3, BallotLtProps, Z3 
                 DEFS Msg1bOK, DidntVoteIn, WontVoteIn, ParticipatedIn
@@ -1845,6 +1855,8 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
               BY <5>a, <7>a, <5>2 DEF PTypeOK, MTypeOK, Msg1bOK, WontVoteIn, ParticipatedIn
             <8>3. QED
               BY <8>1, <8>2
+          <7> pQ2[p_1] = {}
+            BY <5>a DEF PStateInv 
           <7> QED
             BY <5>a, <7>a, NoValueNotAValue, BallotTransLtLt, Z3 
             DEF PTypeOK, MTypeOK, Messages
@@ -1901,29 +1913,19 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
           BY <4>5 DEF P3
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4, <4>5 DEF PNext
-    <3>10. pc[p]' = "P2" => pQ2[p]' = {}
-      <4> HAVE pc[p]' = "P2"
-      <4>1. ASSUME NEW p_1 \in Proposers, P1(p_1) PROVE <3>10!2
-        BY <4>1 DEF P1, MTypeOK, PTypeOK, Messages
-      <4>2. ASSUME NEW p_1 \in Proposers, P2(p_1), pQ1[p_1] \notin Quorums PROVE <3>10!2
-        BY <4>2 DEF P2, MTypeOK, PTypeOK, Messages
-      <4>3. ASSUME NEW p_1 \in Proposers, P2(p_1), pQ1[p_1] \in Quorums PROVE <3>10!2
-        BY <4>3 DEF P2, MTypeOK, PTypeOK, Messages
-      <4>4. ASSUME NEW p_1 \in Proposers, P3(p_1) PROVE <3>10!2
-        <5> SUFFICES ASSUME pQ2[p_1] \notin Quorums,
-                            NEW m \in msgs, 
-                            m.type = "2b", m.to = p_1, 
-                            m.from \notin pQ2[p_1], m.val \in Values, 
-                            P3(p_1)!2!2!1!(m),
-                            UNCHANGED <<msgs, pBal, pQ1>>
-                     PROVE  <3>10!2
-          BY <4>4, SMT DEF P3, MTypeOK
-        <5> QED
-          BY SMT DEF MTypeOK, PTypeOK, Messages
+    <3>10. pQ1[p]' \notin Quorums => pQ2[p]' = {}
+      <4> HAVE pQ1[p]' \notin Quorums
+      <4>1. CASE \E p_1 \in Proposers: P1(p_1)
+        BY <4>1, QuorumNonEmpty, NextBallotProps, SMT DEF P1, MTypeOK, PTypeOK, Messages
+      <4>2. CASE \E p_1 \in Proposers: P2(p_1) /\ pQ1[p_1] \notin Quorums
+        BY <4>2, QuorumNonEmpty, SMT DEF P2, MTypeOK, PTypeOK, Messages
+      <4>3. CASE \E p_1 \in Proposers: P2(p_1) /\ pQ1[p_1] \in Quorums
+        BY <4>3, QuorumNonEmpty, SMT DEF P2, MTypeOK, PTypeOK, Messages
+      <4>4. CASE \E p_1 \in Proposers: P3(p_1)
+        BY <4>4, QuorumNonEmpty, Z3 DEF P3, MTypeOK, PTypeOK, Messages, PMsgInv, AMsgInv
       <4> QED
         BY <4>1, <4>2, <4>3, <4>4 DEF PNext
-    <3>11. pc[p]' = "P2" => 
-           ~ \E m \in msgs' : m.type = "2a" /\ m.from = p /\ m.bal = pBal[p]'
+    <3>11. pc[p]' = "P2" => ~ \E m \in msgs' : m.type = "2a" /\ m.from = p /\ m.bal = pBal[p]'
       <4> HAVE pc[p]' = "P2"
       <4>1. CASE \E p_1 \in Proposers: P1(p_1)
         BY <4>1, NextBallotProps, SMT DEF P1, MTypeOK, PTypeOK, Messages
@@ -2606,5 +2608,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Mar 13 13:12:47 CET 2018 by hernanv
+\* Last modified Tue Mar 13 15:50:29 CET 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
