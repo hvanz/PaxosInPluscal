@@ -818,17 +818,6 @@ USE DEF NextBallotProps
 
 -----------------------------------------------------------------------------
 (***************************************************************************)
-(* Some (unproved) lemmas about concatenation of sequences.                *)
-(***************************************************************************)
-
-LEMMA PUnchangedConcat ==  
-  UNCHANGED (svars \o pvars) => UNCHANGED svars /\ UNCHANGED pvars
-
-LEMMA AUnchangedConcat ==  
-  UNCHANGED (svars \o avars) => UNCHANGED svars /\ UNCHANGED avars
-
------------------------------------------------------------------------------
-(***************************************************************************)
 (* Theorems PSafeAtStable and ASafeAtStable show that (the invariant       *)
 (* implies that) the predicate SafeAt(v, b) is stable, meaning that once   *)
 (* it becomes true, it remains true throughout the rest of the execution.  *)
@@ -951,20 +940,9 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
       <4> /\ \A aa, vv, cc: VotedForIn(aa, vv, cc)' <=> VotedForIn(aa, vv, cc)
           /\ \A aa, cc: WontVoteIn(aa, cc)' <=> WontVoteIn(aa, cc)
         BY DEF svars, pvars, VotedForIn, WontVoteIn, ParticipatedIn
-      <4> UNCHANGED svars /\ UNCHANGED pvars
-        BY PUnchangedConcat
-      <4> HAVE STypeOK /\ PTypeOK /\ PMsgInv /\ PStateInv /\ [PNext]_(svars \o pvars)
       <4> USE DEFS svars, pvars, Messages, SafeAt, DidntVoteIn
-      <4>1. STypeOK'
-        BY SMT DEF STypeOK
-      <4>2. PTypeOK'
-        BY SMT DEF PTypeOK 
-      <4>3. PMsgInv' 
-        BY Z3 DEF PMsgInv
-      <4>4. PStateInv'
-        BY Z3 DEF PStateInv, Msg1bOK, Msg2bOK
       <4> QED
-        BY <4>1, <4>2, <4>3, <4>4, Zenon
+        BY Z3 DEFS STypeOK, PTypeOK, PMsgInv, PStateInv, Msg1bOK, Msg2bOK
     <3> QED
       OBVIOUS
   <2>1. STypeOK' /\ PTypeOK'
@@ -1932,7 +1910,7 @@ THEOREM AInvariant == ASpec => []AInv
           /\ \A aa, cc: WontVoteIn(aa, cc)' <=> WontVoteIn(aa, cc)
         BY DEF svars, avars, VotedForIn, WontVoteIn, ParticipatedIn
       <4> QED
-        BY AUnchangedConcat DEF svars, avars, ATypeOK, STypeOK, Messages, 
+        BY DEF svars, avars, ATypeOK, STypeOK, Messages, 
                AMsgInv, AStateInv, SafeAt, DidntVoteIn, Msg1bOK, Msg2bOK
     <3> QED
       OBVIOUS
@@ -2531,23 +2509,7 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 <1>2. QED
   BY PInvariant, <1>1, PTL
 
------------------------------------------------------------------------------
-\*vars == <<msgs, ballotPool, aBal, aVBal, aVVal, pBal, pVBal, pVVal, pWr, pQ1, pQ2, pLBal>>
-
-\*THEOREM Invariant == Spec => []Inv
-\*<1>1. Init => Inv
-\*<1>2. Inv /\ [Next]_vars => Inv'
-\*  <2> SUFFICES ASSUME Inv, [Next]_vars PROVE Inv'
-\*    OBVIOUS
-\*  <2>1. CASE PNext /\ UNCHANGED avars
-\*  <2>2. CASE ANext /\ UNCHANGED pvars
-\*  <2>3. CASE UNCHANGED vars
-\*  <2>4. QED
-\*    BY <2>1, <2>2, <2>3 DEF Next
-\*<1> QED
-\*  BY <1>1, <1>2, PTL DEF Spec 
-
 =============================================================================
 \* Modification History
-\* Last modified Tue Sep 18 15:29:48 CEST 2018 by hernanv
+\* Last modified Tue Sep 18 15:50:40 CEST 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
