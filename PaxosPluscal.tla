@@ -26,7 +26,7 @@
 (*                                                                         *)
 (* Author: `^Hern\'an Vanzetto, 2018^'.                                    *)
 (***************************************************************************)
-EXTENDS Integers, TLAPS, TLC, Sequences
+EXTENDS Integers, TLAPS, TLC, Sequences, SequenceTheorems
 
 CONSTANTS 
   Acceptors, \* Set of acceptor ids. 
@@ -731,9 +731,16 @@ COROLLARY ExistsQuorum1 ==
 (* `^\textbf{Properties about Ballots, ballot order \prec and NoBallot.}^' *)
 (***************************************************************************)
 
+LEMMA SpecialPairEqualIffCase1 ==
+  ASSUME NEW A, NEW B, NEW x, NEW y,
+         NEW a \in A \X B \cup {<<x,y>>}, 
+         NEW b \in A \X B \cup {<<x,y>>}
+  PROVE  a[1] = b[1] /\ a[2] = b[2] => (a = b)
+OBVIOUS (*{by (isabelle "(auto simp: fcnEqualIff prod_def)")}*)
+
 THEOREM BallotEq == 
   \A a, b \in Ballots: a = b <=> a[1] = b[1] /\ a[2] = b[2] 
-\*BY ProposersNat, Isa DEFS ValidBallots, NoBallot
+BY ProposersNat, SpecialPairEqualIffCase1, Zenon DEFS ValidBallots, NoBallot
   
 LEMMA BallotLeRefl == \A b \in Ballots: b \preceq b
 BY DEFS ValidBallots, \preceq
@@ -2542,5 +2549,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Sep 18 12:20:02 CEST 2018 by hernanv
+\* Last modified Tue Sep 18 15:29:48 CEST 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
