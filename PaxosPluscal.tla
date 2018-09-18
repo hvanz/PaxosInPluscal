@@ -1,6 +1,6 @@
 --------------------------- MODULE PaxosPluscal -----------------------------
 (***************************************************************************)
-(* This module presents a version of the Paxos algorithm written in        *)
+(* This module contains a version of the Paxos algorithm written in        *)
 (* PlusCal, with a proof of the consistency property.  In this             *)
 (* specification, the two participants, acceptor and proposer/learner, are *)
 (* modeled as disjoint processes, each with their own invariant            *)
@@ -521,22 +521,22 @@ SafeAt(v, b) ==
 (***************************************************************************)
 AMsgInv ==
   \A m \in msgs :
-     /\ AM1(m):: (m.type = "1b") =>
-          /\ m.bal \preceq aBal[m.from] \* local to acceptor m.from
-          /\ m.vbal \preceq m.bal
-          /\ \/ /\ m.vval \in Values
-                /\ m.vbal \in ValidBallots
-                /\ VotedForIn(m.from, m.vval, m.vbal)
-             \/ /\ m.vval = NoValue
-                /\ m.vbal = NoBallot
-          /\ \A c \in ValidBallots: 
-                m.vbal \prec c /\ c \prec m.bal => DidntVoteIn(m.from, c)
-     /\ AM2(m):: (m.type = "2b") /\ (m.val \in Values) =>
-          /\ \E mp \in msgs : /\ mp.type = "2a"
-                              /\ mp.from = m.to
-                              /\ mp.bal  = m.bal
-                              /\ mp.val  = m.val
-          /\ m.bal \preceq aVBal[m.from] \* local to acceptor m.from
+     /\ (m.type = "1b") =>
+          /\ AM1(m):: m.bal \preceq aBal[m.from] \* local to acceptor m.from
+          /\ AM2(m):: m.vbal \preceq m.bal
+          /\ AM3(m):: \/ /\ m.vval \in Values
+                         /\ m.vbal \in ValidBallots
+                         /\ VotedForIn(m.from, m.vval, m.vbal)
+                      \/ /\ m.vval = NoValue
+                         /\ m.vbal = NoBallot
+          /\ AM4(m):: \A c \in ValidBallots: 
+                        m.vbal \prec c /\ c \prec m.bal => DidntVoteIn(m.from, c)
+     /\ (m.type = "2b") /\ (m.val \in Values) =>
+          /\ AM5(m):: \E mp \in msgs : /\ mp.type = "2a"
+                                       /\ mp.from = m.to
+                                       /\ mp.bal  = m.bal
+                                       /\ mp.val  = m.val
+          /\ AM6(m):: m.bal \preceq aVBal[m.from] \* local to acceptor m.from
 
 (***************************************************************************)
 (* AStateInv: Inductive invariant about the acceptor variables.  Note that *)
@@ -668,7 +668,7 @@ LEMMA VotedOnce ==
            VotedForIn(a1, v1, b) /\ VotedForIn(a2, v2, b) => (v1 = v2)
 BY Z3 DEF PMsgInv, AMsgInv, VotedForIn
     \* From VotedForIn(a1, v1, b), there exists a "2a" message for ballot b,
-    \* by AM2.  Equally for VotedForIn(a2, v2, b), there exists another "2a"
+    \* by AM5.  Equally for VotedForIn(a2, v2, b), there exists another "2a"
     \* message for b.  Then v1 = v2, by PM1.
 
 (***************************************************************************)
@@ -703,7 +703,7 @@ LEMMA VotedInv ==
 BY DEF AMsgInv, PMsgInv, VotedForIn, SafeAt
 
 (***************************************************************************)
-(* Corollary of PStateInv!PS6 and AMsgInv!AM2.                             *)
+(* Corollary of PStateInv!PS6 and AMsgInv!AM5.                             *)
 (***************************************************************************)
 COROLLARY ExistsQuorum1 ==
   ASSUME STypeOK, PStateInv, AMsgInv, PMsgInv
@@ -1535,11 +1535,11 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
             <7> PICK SS \in SUBSET msgs : SS = S \cup {m}
               BY Isa
             <7> Msg2bOK(p,SS)'
-              BY <6>a, SMT DEF PTypeOK, STypeOK, Messages \* Msg1bOK
+              BY <6>a, SMT DEF PTypeOK, STypeOK, Messages 
             <7> QED
               BY SMT
           <6>b. CASE m.bal # pBal[p_1]
-            BY <6>b, SMT DEF PTypeOK, STypeOK, Messages \* Msg1bOK
+            BY <6>b, SMT DEF PTypeOK, STypeOK, Messages
           <6> QED
             BY <6>a, <6>b
         <5>b. CASE p # p_1
@@ -1600,7 +1600,7 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
               BY <8>2 DEF Msg2bOK
             <8> PICK m2a \in msgs: /\ m2a.type = "2a"
                                    /\ m2a.from = p
-                                   /\ m2a.bal  = M.bal \*pBal[p]
+                                   /\ m2a.bal  = M.bal
                                    /\ m2a.val  = M.val
               BY <8>3 DEF AMsgInv
             <8>4. VotedForIn(m.from, m.val, pBal[p])
@@ -1705,8 +1705,9 @@ THEOREM PInvariant == ASSUME AMsgInv PROVE PSpec => []PInv
                                 /\ ma.bal = m.bal \* = pBal[p_1]
                                 /\ ma.val = m.val
           BY DEF STypeOK, Messages, AMsgInv
-        <5>2. ma.bal = pBal[p] => pQ1[p] \in Quorums  \* by PMsgInv!(p)!2!3
-          BY <5>1, QuorumNonEmpty, SMT DEF PTypeOK, STypeOK, Messages, PMsgInv
+        <5>2. ma.bal = pBal[p] => pQ1[p] \in Quorums  
+          BY <5>1, QuorumNonEmpty, SMT 
+          DEFS PTypeOK, STypeOK, Messages, PMsgInv \* by PMsgInv!(p)!2!3
         <5> QED
           BY <5>1, <5>2, SMT DEF PTypeOK, STypeOK, Messages
       <4>5. CASE \E p_1 \in Proposers: P3(p_1) /\ pQ2[p_1] \in Quorums
@@ -2439,6 +2440,10 @@ THEOREM AInvariant == ASpec => []AInv
 
 -----------------------------------------------------------------------------
 (***************************************************************************)
+(* The proofs of the main (safety) properties for this spec, consistency   *)
+(* of acceptors and proposers.                                             *)
+(***************************************************************************)
+(***************************************************************************)
 (* To prove that the consistency property of the acceptors is an invariant *)
 (* over the acceptor spec, we need to assume that the invariant about      *)
 (* messages sent by proposers holds.                                       *)
@@ -2464,7 +2469,8 @@ THEOREM AConsistent == ASSUME PMsgInv PROVE ASpec => []AConsistency
     <3>3. PICK Q1 \in Quorums : \A a \in Q1 : VotedForIn(a, v1, b1)
       BY DEF ChosenIn
     <3>4. QED
-      BY <3>2, <3>3, QuorumAssumption1, QuorumAssumption2, VotedOnce, Z3 DEF DidntVoteIn
+      BY <3>2, <3>3, QuorumAssumption1, QuorumAssumption2, VotedOnce, Z3 
+      DEF DidntVoteIn
   <2>3. QED
     BY <2>1, <2>2, BallotLeDef
 <1>2. QED
@@ -2496,7 +2502,7 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
         BY PKnowsIn(p2,v2,b2) DEF PKnowsIn, PStateInv, STypeOK, PTypeOK
       <4>3. QED
         BY VotedInv, QuorumAssumption1, QuorumNonEmpty, <4>1, <4>2 
-    <3>2. PICK Q2 \in Quorums : \* SafeAt(v2, b2)!(b1)!(Q2)
+    <3>2. PICK Q2 \in Quorums : 
                  \A a \in Q2 : \/ VotedForIn(a, v2, b1)
                                \/ DidntVoteIn(a, b1) \* /\ WontVoteIn(a, b1) not needed
       BY <3>1, <2>2 DEF SafeAt
@@ -2511,5 +2517,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Sep 18 15:50:40 CEST 2018 by hernanv
+\* Last modified Tue Sep 18 16:39:03 CEST 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
