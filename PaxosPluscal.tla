@@ -516,13 +516,11 @@ SafeAt(v, b) ==
 
 (***************************************************************************)
 (* AMsgInv: Acceptor's message invariant.  How messages "1b" and "2b" sent *)
-(* by an acceptor with id m.from are related to the acceptor's state and   *)
-(* other messages.                                                         *)
+(* by an acceptor with id m.from are related to other messages.            *)
 (***************************************************************************)
 AMsgInv ==
   \A m \in msgs :
      /\ (m.type = "1b") =>
-          /\ AM1(m):: m.bal \preceq aBal[m.from] \* local to acceptor m.from
           /\ AM2(m):: m.vbal \preceq m.bal
           /\ AM3(m):: \/ /\ m.vval \in Values
                          /\ m.vbal \in ValidBallots
@@ -536,7 +534,6 @@ AMsgInv ==
                                        /\ mp.from = m.to
                                        /\ mp.bal  = m.bal
                                        /\ mp.val  = m.val
-          /\ AM6(m):: m.bal \preceq aVBal[m.from] \* local to acceptor m.from
 
 (***************************************************************************)
 (* AStateInv: Inductive invariant about the acceptor variables.  Note that *)
@@ -549,6 +546,9 @@ AStateInv ==
      /\ AS3(a):: aVBal[a] \in ValidBallots => VotedForIn(a, aVVal[a], aVBal[a])
      /\ AS4(a):: \A b \in Ballots : aVBal[a] \prec b => DidntVoteIn(a, b)
      /\ AS5(a):: \A b \in Ballots : WontVoteIn(a, b) <=> b \prec aBal[a]
+     /\ AS6(a):: \A m \in msgs: m.from = a /\ (m.type = "1b") => m.bal \preceq aBal[a] 
+     /\ AS7(a):: \A m \in msgs: m.from = a /\ (m.type = "2b") /\ (m.val \in Values) 
+                   => m.bal \preceq aVBal[a]
 
 -----------------------------------------------------------------------------
 (***************************************************************************)
@@ -1964,14 +1964,9 @@ THEOREM AInvariant == ASpec => []AInv
         <5>a. CASE mm \in msgs
           <6>1. AMsgInv!(mm)!1!2
             BY <4>a, <5>a, Zenon DEFS AMsgInv, VotedForIn, DidntVoteIn
-          <6>2. mm.bal \preceq aBal[mm.from]'
-            BY <4>a, <5>a, BallotTransLeLt, BallotLtIsLe, Z3
-            DEF STypeOK, ATypeOK, Messages, AMsgInv
           <6> QED
-            BY <6>1, <6>2 DEF VotedForIn, DidntVoteIn
+            BY <6>1 DEF VotedForIn, DidntVoteIn
         <5>b. CASE mm = M
-          <6>1. mm.bal \preceq aBal[mm.from]'
-            BY <5>b, BallotLeRefl DEF STypeOK, ATypeOK, Messages, AMsgInv
           <6>2. mm.vbal \preceq mm.bal
             BY <5>b, BallotTransLeLt, BallotLtIsLe, Z3 
             DEF STypeOK, ATypeOK, Messages, AStateInv
@@ -1988,7 +1983,7 @@ THEOREM AInvariant == ASpec => []AInv
             <7> QED
               BY <4>a, <5>b, <6>3, Z3 DEF STypeOK, ATypeOK, AStateInv, DidntVoteIn, VotedForIn
           <6> QED
-            BY <6>1, <6>2, <6>3, <6>4
+            BY <6>2, <6>3, <6>4
         <5> QED 
           BY <5>a, <5>b
       <4>b. AMsgInv!(mm)!2'
@@ -2022,17 +2017,17 @@ THEOREM AInvariant == ASpec => []AInv
         <5>a. AMsgInv!(mm)!1'
           <6> SUFFICES ASSUME mm.type = "1b" PROVE AMsgInv!(mm)!1!2'
             OBVIOUS
-          <6>1. mm.bal \preceq aBal[mm.from]'
-            <7>a. CASE mm = M
-              BY <4>a, <5>0, <7>a, BallotLeRefl 
-              DEFS STypeOK, ATypeOK, Messages, AMsgInv
-            <7>b. CASE mm \in msgs /\ mm.from = a
-              BY <4>a, <5>0, <7>b, BallotTransLeLe, Z3
-              DEF STypeOK, ATypeOK, Messages, AMsgInv
-            <7>c. CASE mm \in msgs /\ mm.from # a
-              BY <4>a, <5>0, <7>c DEF STypeOK, ATypeOK, Messages, AMsgInv
-            <7> QED
-              BY <5>0, <7>a, <7>b, <7>c
+\*          <6>1. mm.bal \preceq aBal[mm.from]'
+\*            <7>a. CASE mm = M
+\*              BY <4>a, <5>0, <7>a, BallotLeRefl 
+\*              DEFS STypeOK, ATypeOK, Messages, AMsgInv
+\*            <7>b. CASE mm \in msgs /\ mm.from = a
+\*              BY <4>a, <5>0, <7>b, BallotTransLeLe, Z3
+\*              DEF STypeOK, ATypeOK, Messages, AMsgInv
+\*            <7>c. CASE mm \in msgs /\ mm.from # a
+\*              BY <4>a, <5>0, <7>c DEF STypeOK, ATypeOK, Messages, AMsgInv
+\*            <7> QED
+\*              BY <5>0, <7>a, <7>b, <7>c
           <6>2. mm.vbal \preceq mm.bal
             BY <4>a, <5>0 DEF AMsgInv
           <6>3. \/ /\ mm.vval \in Values
@@ -2060,7 +2055,7 @@ THEOREM AInvariant == ASpec => []AInv
               BY <5>0, <7>1, <7>a, Zenon DEF VotedForIn, DidntVoteIn
             <7>b. CASE m_1 = M
               <8> mm.bal \preceq aBal[mm.from]
-                BY <5>0 DEF STypeOK, ATypeOK, Messages, AMsgInv
+                BY <5>0 DEF STypeOK, ATypeOK, Messages, AStateInv \*AMsgInv
               <8> c \prec aBal[mm.from] 
                 BY <5>0, <6>4, BallotTransLtLe, Z3 DEF STypeOK, ATypeOK, Messages
               <8> mm.from = a => c \prec m.bal 
@@ -2070,7 +2065,7 @@ THEOREM AInvariant == ASpec => []AInv
             <7> QED
               BY <7>a, <7>b
           <6> QED
-            BY <6>1, <6>2, <6>3, <6>4
+            BY (*<6>1,*) <6>2, <6>3, <6>4
         <5>b. AMsgInv!(mm)!2'
           <6> SUFFICES ASSUME mm.type = "2b", mm.val \in Values
                        PROVE  AMsgInv!(mm)!2!2'
@@ -2080,19 +2075,19 @@ THEOREM AInvariant == ASpec => []AInv
                                   /\ ma.bal  = mm.bal
                                   /\ ma.val  = mm.val
             BY <4>0, <5>0 DEF AMsgInv
-          <6>2. mm.bal \preceq aVBal[mm.from]'
-            <7>a. CASE mm \in msgs
-              <8> mm.bal \preceq aVBal[mm.from]
-                BY <5>0, <7>a DEF AMsgInv
-              <8> QED
-                BY <5>0, <7>a, <4>a, BallotTransLeLe, Z3 
-                DEF STypeOK, ATypeOK, Messages, AStateInv
-            <7>b. CASE mm = M
-              BY <5>0, <7>b, BallotLeRefl DEF STypeOK, ATypeOK, Messages
-            <7> QED
-              BY <5>0, <7>a, <7>b
+\*          <6>2. mm.bal \preceq aVBal[mm.from]'
+\*            <7>a. CASE mm \in msgs
+\*              <8> mm.bal \preceq aVBal[mm.from]
+\*                BY <5>0, <7>a DEF AMsgInv
+\*              <8> QED
+\*                BY <5>0, <7>a, <4>a, BallotTransLeLe, Z3 
+\*                DEF STypeOK, ATypeOK, Messages, AStateInv
+\*            <7>b. CASE mm = M
+\*              BY <5>0, <7>b, BallotLeRefl DEF STypeOK, ATypeOK, Messages
+\*            <7> QED
+\*              BY <5>0, <7>a, <7>b
           <6> QED
-            BY <6>1, <6>2
+            BY <6>1 (*, <6>2*)
         <5> QED
           BY <5>a, <5>b, Zenon
       <4>b. CASE ~ (aBal[a] \preceq m.bal)
@@ -2109,8 +2104,8 @@ THEOREM AInvariant == ASpec => []AInv
         <5>a. AMsgInv!(mm)!1'
           <6> SUFFICES ASSUME mm.type = "1b" PROVE AMsgInv!(mm)!1!2'
             OBVIOUS
-          <6>1. mm.bal \preceq aBal[mm.from]'
-            BY <4>b, <5>0 DEF AMsgInv
+\*          <6>1. mm.bal \preceq aBal[mm.from]'
+\*            BY <4>b, <5>0 DEF AMsgInv
           <6>2. mm.vbal \preceq mm.bal
             BY <4>b, <5>0 DEF AMsgInv
           <6>3. \/ /\ mm.vval \in Values
@@ -2138,7 +2133,7 @@ THEOREM AInvariant == ASpec => []AInv
               BY <5>0, <7>1, <7>a, Zenon DEF VotedForIn
             <7>b. CASE m_1 = M
               <8> mm.bal \preceq aBal[mm.from]
-                BY <5>0 DEF STypeOK, ATypeOK, Messages, AMsgInv
+                BY <5>0 DEF STypeOK, ATypeOK, Messages, AStateInv \*AMsgInv
               <8> c \prec aBal[mm.from] 
                 BY <5>0, <6>4, BallotTransLtLe, Z3 DEF STypeOK, ATypeOK, Messages
               <8> QED
@@ -2146,7 +2141,7 @@ THEOREM AInvariant == ASpec => []AInv
             <7> QED
               BY <7>a, <7>b
           <6> QED
-            BY <6>1, <6>2, <6>3, <6>4 DEF DidntVoteIn
+            BY (*<6>1,*) <6>2, <6>3, <6>4 DEF DidntVoteIn
         <5>b. AMsgInv!(mm)!2'
           <6> SUFFICES ASSUME mm.type = "2b", mm.val \in Values
                        PROVE AMsgInv!(mm)!2!2'
@@ -2157,13 +2152,13 @@ THEOREM AInvariant == ASpec => []AInv
                                     /\ ma.bal  = mm.bal
                                     /\ ma.val  = mm.val
               BY <4>b, <5>0, <6>a DEF AMsgInv, VotedForIn
-            <7>b. mm.bal \preceq aVBal[mm.from]'
-              <8> mm.bal \preceq aVBal[mm.from]
-                BY <5>0, <6>a DEF AMsgInv
-              <8> QED
-                BY <5>0, <6>a, <4>b
+\*            <7>b. mm.bal \preceq aVBal[mm.from]'
+\*              <8> mm.bal \preceq aVBal[mm.from]
+\*                BY <5>0, <6>a DEF AMsgInv
+\*              <8> QED
+\*                BY <5>0, <6>a, <4>b
             <7> QED
-              BY <7>a, <7>b
+              BY <7>a (*, <7>b*)
           <6>b. CASE mm = M
             BY <6>b, NoValueNotAValue
           <6> QED
@@ -2201,9 +2196,9 @@ THEOREM AInvariant == ASpec => []AInv
             BY BallotTransLeLt, BallotLtIsLe, Z3 
             DEF AStateInv, STypeOK, ATypeOK, Messages  
           <6>3. (aVBal[a_1] \in ValidBallots => VotedForIn(a_1, aVVal[a_1], aVBal[a_1]))'
-            BY DEF AStateInv, STypeOK, ATypeOK, Messages
+            BY DEF AStateInv
           <6>4. (\A c \in Ballots : aVBal[a_1] \prec c => DidntVoteIn(a_1, c))'
-            BY DEF AStateInv, STypeOK, ATypeOK, Messages, DidntVoteIn
+            BY DEF AStateInv, DidntVoteIn
           <6>5a. (\A b \in Ballots : WontVoteIn(a_1, b) => b \prec aBal[a_1])'
             <7> SUFFICES ASSUME NEW b \in Ballots,
                                 WontVoteIn(a_1, b)'
@@ -2248,22 +2243,22 @@ THEOREM AInvariant == ASpec => []AInv
           <6>6. (\A b \in Ballots: 
                    DidntVoteIn(a_1, b) => aVBal[a_1] = NoBallot \/ aVBal[a_1] # b)'
             BY DEF AStateInv, STypeOK, ATypeOK, Messages, DidntVoteIn
+          <6>7. (\A mm \in msgs: mm.from = a_1 /\ mm.type = "1b" => mm.bal \preceq aBal[a_1])'
+            BY BallotLtProps, Z3 DEFS STypeOK, ATypeOK, Messages, AStateInv
+          <6>8. (\A mm \in msgs: mm.from = a_1 /\ mm.type = "2b" /\ mm.val \in Values 
+                  => mm.bal \preceq aVBal[a_1])'
+            BY DEF AStateInv
           <6> QED
-            BY <6>1, <6>2, <6>3, <6>4, <6>5a, <6>5b, <6>6
+            BY <6>1, <6>2, <6>3, <6>4, <6>5a, <6>5b, <6>6, <6>7, <6>8
       <4>b. CASE ~ (aBal[a] \prec m.bal)
         <5> UNCHANGED aBal 
           BY <4>b
-        <5>1. aVBal[a_1]' = NoBallot <=> aVVal[a_1]' = NoValue
-          BY DEF AStateInv, ATypeOK
-        <5>2. aVBal[a_1]' \preceq aBal[a_1]'
-          BY DEF AStateInv, ATypeOK
-        <5>3. aVBal[a_1]' \in ValidBallots => VotedForIn(a_1, aVVal[a_1], aVBal[a_1])'
-          BY DEF AStateInv, ATypeOK, VotedForIn
-        <5>x. \A q \in Acceptors: aVBal[q] = NoBallot => \A bb \in ValidBallots: DidntVoteIn(q, bb)
-          BY NoBallotLowest DEF AStateInv
         <5>4. (\A b \in Ballots : aVBal[a_1] \prec b => DidntVoteIn(a_1, b))'
           BY DEF AStateInv, STypeOK, ATypeOK, Messages, DidntVoteIn
         <5>5a. \A b \in Ballots : WontVoteIn(a_1, b)' => b \prec aBal[a_1]'
+          <6>1. \A q \in Acceptors: aVBal[q] = NoBallot 
+                  => \A bb \in ValidBallots: DidntVoteIn(q, bb)
+            BY NoBallotLowest DEF AStateInv
           <6> SUFFICES ASSUME NEW b \in Ballots,
                               NEW d \in ValidBallots,
                               b \prec d,
@@ -2275,10 +2270,10 @@ THEOREM AInvariant == ASpec => []AInv
                        PROVE  b \prec aBal[a_1]'
             BY DEF ParticipatedIn, WontVoteIn
           <6>a. CASE m_2.type = "1b"
-            BY <6>a, <4>b, <5>x, Z3 DEF AStateInv, WontVoteIn, ParticipatedIn
+            BY <6>a, <4>b, <6>1, Z3 DEF AStateInv, WontVoteIn, ParticipatedIn
           <6>b. CASE m_2.type = "2b" /\ m_2.val \in Values
             BY <6>b, <4>b, Z3 DEF AStateInv, WontVoteIn, ParticipatedIn
-          <6>3. QED
+          <6> QED
             BY <6>a, <6>b
         <5>5b. \A b \in Ballots : b \prec aBal[a_1]' => WontVoteIn(a_1, b)'
           <6> SUFFICES ASSUME NEW b \in Ballots, b \prec aBal[a_1]
@@ -2295,9 +2290,19 @@ THEOREM AInvariant == ASpec => []AInv
             BY <4>b, <6>b, Z3 DEF AStateInv, STypeOK, ATypeOK, WontVoteIn, ParticipatedIn
           <6> QED
             BY <6>a, <6>b
+        <5>6. ASSUME NEW mm \in msgs' 
+              PROVE mm.from = a_1 /\ mm.type = "1b" => mm.bal \preceq aBal[a_1]'
+          <6> DEFINE M == [type |-> "1b", from |-> a, to |-> m.from,
+                           bal |-> aBal'[a], vbal |-> aVBal[a], vval |-> aVVal[a]]
+          <6>a. CASE mm \in msgs
+            BY <6>a, BallotTransLeLt, BallotLtIsLe, Z3
+            DEF STypeOK, ATypeOK, Messages, AStateInv
+          <6>b. CASE mm = M
+            BY <6>b, BallotLeRefl DEFS STypeOK, ATypeOK, Messages, AMsgInv
+          <6> QED
+            BY <6>a, <6>b
         <5> QED
-          BY <5>1, <5>2, <5>3, <5>4, <5>5a, <5>5b
-          DEF AStateInv
+          BY <5>4, <5>5a, <5>5b, <5>6 DEF AStateInv
       <4> QED
         BY <4>a, <4>b DEF STypeOK, ATypeOK, Messages
     <3>b. CASE A1(a)!2!(m)!2
@@ -2377,27 +2382,32 @@ THEOREM AInvariant == ASpec => []AInv
                 BY <4>a, Z3 DEF ParticipatedIn, STypeOK, ATypeOK, Messages
             <7> QED
               BY <7>a, <7>b
+          <6>6. (\A mm \in msgs: mm.from = a_1 /\ mm.type = "1b" => mm.bal \preceq aBal[a_1])'
+            BY <4>a, BallotLtProps, Z3 DEFS STypeOK, ATypeOK, Messages, AStateInv
+          <6>7. (\A mm \in msgs: mm.from = a_1 /\ mm.type = "2b" /\ mm.val \in Values
+                  => mm.bal \preceq aVBal[a_1])'
+            BY <4>a, BallotLtProps, Z3 DEF STypeOK, ATypeOK, Messages, AStateInv
           <6> QED
-            BY <6>1, <6>2, <6>3, <6>4, <6>5
+            BY <6>1, <6>2, <6>3, <6>4, <6>5, <6>6, <6>7
         <5>b. CASE a # a_1
-          <6> USE <5>b
+          <6> USE <5>b DEFS STypeOK, ATypeOK, Messages
           <6>1. (aVBal[a_1] = NoBallot <=> aVVal[a_1] = NoValue)'
-            BY DEF AStateInv, STypeOK, ATypeOK, Messages
+            BY DEF AStateInv
           <6>2. (aVBal[a_1] \preceq aBal[a_1])'
-            BY DEF AStateInv, STypeOK, ATypeOK, Messages
+            BY DEF AStateInv
           <6>3. (aVBal[a_1] \in ValidBallots => VotedForIn(a_1, aVVal[a_1], aVBal[a_1]))'
-            BY DEF AStateInv, STypeOK, ATypeOK, Messages, VotedForIn
+            BY DEF AStateInv, VotedForIn
           <6>4. (\A c \in Ballots : aVBal[a_1] \prec c => DidntVoteIn(a_1, c))'
             <7> SUFFICES ASSUME NEW c \in Ballots,
                                 aVBal[a_1] \prec c
                          PROVE  DidntVoteIn(a_1, c)'
-              BY DEF STypeOK, ATypeOK
+              OBVIOUS
             <7> QED
               BY DEF AStateInv, VotedForIn, DidntVoteIn
           <6>5. (\A b \in Ballots : WontVoteIn(a_1, b) <=> b \prec aBal[a_1])'
             <7> SUFFICES ASSUME NEW b \in Ballots
                          PROVE  WontVoteIn(a_1, b)' <=> b \prec aBal[a_1]
-              BY DEF STypeOK, ATypeOK, Messages
+              OBVIOUS
             <7> QED
               BY DEF AStateInv, WontVoteIn, ParticipatedIn
           <6>6. (\A b \in Ballots: 
@@ -2405,30 +2415,38 @@ THEOREM AInvariant == ASpec => []AInv
             <7> SUFFICES ASSUME NEW b \in Ballots,
                                 \A v \in Values : ~ VotedForIn(a_1, v, b)'
                          PROVE  aVBal[a_1] = NoBallot \/ aVBal[a_1] # b
-              BY DEF STypeOK, ATypeOK, Messages, DidntVoteIn
+              BY DEF DidntVoteIn
             <7> QED
-              BY DEF AStateInv, STypeOK, ATypeOK, Messages, AMsgInv, VotedForIn
+              BY DEFS AStateInv, AMsgInv, VotedForIn
+          <6>7. (\A mm \in msgs :
+                  mm.from = a_1 /\ mm.type = "1b" => mm.bal \preceq aBal[a_1])'
+            BY <4>a, BallotLtProps, Z3 DEF AStateInv
+          <6>8. (\A mm \in msgs: mm.from = a_1 /\ mm.type = "2b" /\ mm.val \in Values
+                  => mm.bal \preceq aVBal[a_1])'
+            BY <4>a, BallotLtProps, Z3 DEF AStateInv              
           <6> QED
-            BY <6>1, <6>2, <6>3, <6>4, <6>5, <6>6, Zenon
+            BY <6>1, <6>2, <6>3, <6>4, <6>5, <6>6, <6>7, <6>8, Zenon
         <5>5. QED
           BY <5>a, <5>b
       <4>b. CASE ~ (aBal[a] \preceq m.bal)
-        <5> /\ Send([type |-> "2b", from |-> a, to |-> m.from,
-                     bal |-> aBal[a], val |-> NoValue])
+        <5> DEFINE M == [type |-> "2b", from |-> a, to |-> m.from,
+                         bal |-> aBal[a], val |-> NoValue]
+        <5> /\ Send(M)
             /\ UNCHANGED <<aBal, aVBal, aVVal>>
           BY <4>1, <4>b DEF STypeOK, ATypeOK, Messages
-        <5>1. (aVBal[a_1] = NoBallot <=> aVVal[a_1] = NoValue)'
-          BY DEF AStateInv
-        <5>2. (aVBal[a_1] \preceq aBal[a_1])'
-          BY DEF AStateInv
         <5>3. (aVBal[a_1] \in ValidBallots => VotedForIn(a_1, aVVal[a_1], aVBal[a_1]))'
           BY DEF AStateInv, VotedForIn, ATypeOK
         <5>4. (\A c \in Ballots : aVBal[a_1] \prec c => DidntVoteIn(a_1, c))'
           BY NoValueNotAValue DEF VotedForIn, DidntVoteIn, AStateInv
         <5>5. (\A b \in Ballots : WontVoteIn(a_1, b) <=> b \prec aBal[a_1])'
           BY DEF WontVoteIn, ParticipatedIn, AStateInv
+        <5>6. (\A mm \in msgs: mm.from = a_1 /\ mm.type = "1b" => mm.bal \preceq aBal[a_1])'
+          BY <4>b, BallotLtProps DEF AStateInv
+        <5>7. (\A mm \in msgs: mm.from = a_1 /\ mm.type = "2b" /\ mm.val \in Values
+                => mm.bal \preceq aVBal[a_1])'
+          BY <4>b, BallotLtProps, NoValueNotAValue DEF AStateInv
         <5> QED
-          BY <5>1, <5>2, <5>3, <5>4, <5>5
+          BY <5>3, <5>4, <5>5, <5>6, <5>7 DEF AStateInv
       <4> QED
         BY <4>a, <4>b DEF STypeOK, ATypeOK, Messages
     <3> QED
@@ -2517,5 +2535,5 @@ THEOREM PConsistent == ASSUME AMsgInv PROVE PSpec => []PConsistency
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Sep 18 16:39:03 CEST 2018 by hernanv
+\* Last modified Wed Sep 19 20:40:08 CEST 2018 by hernanv
 \* Created Fri Dec 8 12:29:00 EDT 2017 by hernanv
